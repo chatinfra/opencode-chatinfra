@@ -104,7 +104,8 @@ const callApi = async (toolName, { method, path, query, body }) => {
   const headers = {
     Accept: "application/json",
   };
-  if (body) {
+  const hasBody = body !== undefined;
+  if (hasBody) {
     headers["Content-Type"] = "application/json";
   }
   if (AUTH_TOKEN) {
@@ -195,7 +196,7 @@ export async function ChatinfraPlugin() {
               .describe("Chat body for the message"),
           }),
         async execute(args) {
-          return await callApi("sendXmppMessage", {
+          const result = await callApi("sendXmppMessage", {
             method: "POST",
             path: "/xmpp/send",
             body: {
@@ -203,6 +204,7 @@ export async function ChatinfraPlugin() {
               message: args.message,
             },
           });
+          return normalizeToolOutput(result);
         },
       }),
       describeXmppConnection: toolFactory({
@@ -213,9 +215,9 @@ export async function ChatinfraPlugin() {
             method: "GET",
             path: "/xmpp/me",
           });
-          logInfo(`describeXmppConnection: ${safeJson()}`)
-          logInfo(`describeXmppConnection: ${safeJson(r)}`)
-          return r
+          logInfo(`describeXmppConnection: ${safeJson()}`);
+          logInfo(`describeXmppConnection: ${safeJson(r)}`);
+          return normalizeToolOutput(r);
         },
       }),
       scheduleTask: toolFactory({
@@ -254,11 +256,12 @@ export async function ChatinfraPlugin() {
           if (args.intervalSeconds) payload.intervalSeconds = args.intervalSeconds;
           if (args.metadata) payload.metadata = args.metadata;
 
-          return await callApi("scheduleTask", {
+          const result = await callApi("scheduleTask", {
             method: "POST",
             path: "/tasks",
             body: payload,
           });
+          return normalizeToolOutput(result);
         },
       }),
       listScheduledTasks: toolFactory({
@@ -271,11 +274,12 @@ export async function ChatinfraPlugin() {
               .describe("Optional lifecycle status to filter (pending, running, etc.)"),
           }),
         async execute(args) {
-          return await callApi("listScheduledTasks", {
+          const result = await callApi("listScheduledTasks", {
             method: "GET",
             path: "/tasks",
             query: args.status ? { status: args.status } : undefined,
           });
+          return normalizeToolOutput(result);
         },
       }),
       cancelScheduledTask: toolFactory({
@@ -288,10 +292,11 @@ export async function ChatinfraPlugin() {
               .describe("Identifier returned when the task was created"),
           }),
         async execute(args) {
-          return await callApi("cancelScheduledTask", {
+          const result = await callApi("cancelScheduledTask", {
             method: "POST",
             path: `/tasks/${encodeURIComponent(args.taskId)}/cancel`,
           });
+          return normalizeToolOutput(result);
         },
       }),
       getTaskHistory: toolFactory({
@@ -314,11 +319,12 @@ export async function ChatinfraPlugin() {
           const query = {};
           if (args.limit) query.limit = args.limit;
           if (args.status) query.status = args.status;
-          return await callApi("getTaskHistory", {
+          const result = await callApi("getTaskHistory", {
             method: "GET",
             path: "/tasks/history",
             query: Object.keys(query).length ? query : undefined,
           });
+          return normalizeToolOutput(result);
         },
       }),
     },
