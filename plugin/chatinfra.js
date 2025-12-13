@@ -69,14 +69,20 @@ const safeJson = (value, maxLength = 1000) => {
   }
 };
 
+const normalizeToolOutput = (value) => {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  return safeJson(value, 10000);
+};
+
 const BASE_URL = process.env.CHATINFRA_API_BASE_URL || "https://api.example.com";
-logInfo(`Using Chatinfra API base URL: ${BASE_URL}`);
 const AUTH_TOKEN = process.env.CHATINFRA_API_KEY || process.env.CHATINFRA_API_TOKEN || "";
 const TIMEOUT_MS = normalizeTimeout(process.env.CHATINFRA_API_TIMEOUT_MS, 15000);
 
 const buildUrl = (path, query) => {
-  const base = new URL(BASE_URL);
-  const url = new URL(path, base);
+  const url = new URL(BASE_URL + path);
+
+  logInfo(`buildUrl Using Chatinfra API base URL: ${BASE_URL}`);
 
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
@@ -84,6 +90,7 @@ const buildUrl = (path, query) => {
       url.searchParams.set(key, String(value));
     });
   }
+  logInfo(`buildUrl returning: ${url}`);
 
   return url;
 };
@@ -116,7 +123,7 @@ const callApi = async (toolName, { method, path, query, body }) => {
   if (controller && TIMEOUT_MS) {
     options.signal = controller.signal;
   }
-
+  logInfo("BEFORE other log")
   logInfo(
     `[${toolName}] Request ${method} ${url.href} query=${safeJson(url.searchParams.toString())} body=${safeJson(body)}`
   );
@@ -149,6 +156,9 @@ const callApi = async (toolName, { method, path, query, body }) => {
       throw new Error(message);
     }
 
+    logInfo("AFTER response.ok")
+    logInfo(`[${toolName}] parsed: ${parsed}`)
+    logInfo(`[${toolName}] payload: ${payload}`)
     return parsed ?? payload;
   } catch (err) {
     if (err.name === "AbortError") {
@@ -158,10 +168,13 @@ const callApi = async (toolName, { method, path, query, body }) => {
     logError(`[${toolName}] ${err && err.stack ? err.stack : err}`);
     throw err;
   } finally {
+    logInfo("in finally")
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
+    logInfo("after clearTimeout")
   }
+  logInfo("AFTER other all")
 };
 
 export async function ChatinfraPlugin() {
@@ -194,12 +207,15 @@ export async function ChatinfraPlugin() {
       }),
       describeXmppConnection: toolFactory({
         description: "Describe the configured XMPP credential.",
-        args: (z) => z.object({}).describe("No arguments required."),
+        args: (z) => z.object({}).optional().default({}).describe("No arguments required."),
         async execute() {
-          return await callApi("describeXmppConnection", {
+          const r = await callApi("describeXmppConnection", {
             method: "GET",
             path: "/xmpp/me",
           });
+          logInfo(`describeXmppConnection: ${safeJson()}`)
+          logInfo(`describeXmppConnection: ${safeJson(r)}`)
+          return r
         },
       }),
       scheduleTask: toolFactory({
