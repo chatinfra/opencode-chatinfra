@@ -7,8 +7,13 @@ let cachedTool;
 const acquireTool = async () => {
   if (cachedTool) return cachedTool;
   try {
-    const module = await import("@opencode-ai/plugin");
-    cachedTool = module.tool;
+    try {
+      const module = await import("@opencode-ai/plugin");
+      cachedTool = module.tool;
+    } catch {
+      const module = await import("@opencode-ai/plugin/tool");
+      cachedTool = module.tool;
+    }
   } catch {
     const fallback = (input) => input;
     fallback.schema = zodSchema;
@@ -184,10 +189,11 @@ export async function ChatinfraPlugin() {
     tool: {
        sendXmppMessage: toolFactory({
          description: "Send an XMPP stanza using the configured credentials.",
-         args: {
-           to: z.string().min(1).describe("Recipient JID, e.g. someone@example.com"),
-           message: z.string().min(1).describe("Chat body for the message"),
-         },
+        args: (z) =>
+          z.object({
+            to: z.string().min(1).describe("Recipient JID, e.g. someone@example.com"),
+            message: z.string().min(1).describe("Chat body for the message"),
+          }),
          async execute(args, _context) {
           const result = await callApi("sendXmppMessage", {
             method: "POST",
@@ -203,7 +209,7 @@ export async function ChatinfraPlugin() {
       describeXmppConnection: toolFactory({
         description: "Describe the configured XMPP credential.",
         args: (z) => z.object({}).optional().default({}).describe("No arguments required."),
-        async execute() {
+        async execute(_args, _context) {
           const r = await callApi("describeXmppConnection", {
             method: "GET",
             path: "/xmpp/me",
@@ -217,14 +223,8 @@ export async function ChatinfraPlugin() {
         description: "Schedule a future send task.",
         args: (z) =>
           z.object({
-            to: z
-              .string()
-              .min(1)
-              .describe("Recipient JID for the scheduled message"),
-            message: z
-              .string()
-              .min(1)
-              .describe("Chat body to deliver when the task runs"),
+            to: z.string().min(1).describe("Recipient JID for the scheduled message"),
+            message: z.string().min(1).describe("Chat body to deliver when the task runs"),
             runAt: z
               .string()
               .optional()
@@ -240,7 +240,7 @@ export async function ChatinfraPlugin() {
               .optional()
               .describe("Optional key-value metadata the scheduler stores"),
           }),
-        async execute(args) {
+        async execute(args, _context) {
           const payload = {
             to: args.to,
             message: args.message,
@@ -266,7 +266,7 @@ export async function ChatinfraPlugin() {
               .optional()
               .describe("Optional lifecycle status to filter (pending, running, etc.)"),
           }),
-        async execute(args) {
+        async execute(args, _context) {
           const result = await callApi("listScheduledTasks", {
             method: "GET",
             path: "/tasks",
@@ -279,12 +279,9 @@ export async function ChatinfraPlugin() {
         description: "Cancel a scheduled task by ID.",
         args: (z) =>
           z.object({
-            taskId: z
-              .string()
-              .min(1)
-              .describe("Identifier returned when the task was created"),
+            taskId: z.string().min(1).describe("Identifier returned when the task was created"),
           }),
-        async execute(args) {
+        async execute(args, _context) {
           const result = await callApi("cancelScheduledTask", {
             method: "POST",
             path: `/tasks/${encodeURIComponent(args.taskId)}/cancel`,
@@ -308,7 +305,7 @@ export async function ChatinfraPlugin() {
               .optional()
               .describe("Optional final status filter (completed, failed, canceled)"),
           }),
-        async execute(args) {
+        async execute(args, _context) {
           const query = {};
           if (args.limit) query.limit = args.limit;
           if (args.status) query.status = args.status;
