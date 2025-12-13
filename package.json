@@ -1,7 +1,6 @@
 {
   "dependencies": {
     "@opencode-ai/plugin": "1.0.127",
-    "@xmpp/client": "^0.14.0",
     "dotenv": "^17.2.3",
     "zod": "^4.1.13"
   }
