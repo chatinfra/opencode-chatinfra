@@ -116,8 +116,8 @@ const callApi = async (toolName, { method, path, query, body }) => {
     method,
     headers,
   };
-  if (body) {
-    options.body = JSON.stringify(body);
+  if (hasBody) {
+    options.body = JSON.stringify(body ?? null);
   }
 
   const controller = typeof AbortController === "function" ? new AbortController() : null;
@@ -126,7 +126,7 @@ const callApi = async (toolName, { method, path, query, body }) => {
   }
   logInfo("BEFORE other log")
   logInfo(
-    `[${toolName}] Request ${method} ${url.href} query=${safeJson(url.searchParams.toString())} body=${safeJson(body)}`
+    `[${toolName}] Request ${method} ${url.href} query=${safeJson(url.searchParams.toString())} body=${safeJson(body)} serializedBody=${safeJson(options.body)}`
   );
 
   let timeoutId;
@@ -182,20 +182,13 @@ export async function ChatinfraPlugin() {
   const toolFactory = await acquireTool();
   return {
     tool: {
-      sendXmppMessage: toolFactory({
-        description: "Send an XMPP stanza using the configured credentials.",
-        args: (z) =>
-          z.object({
-            to: z
-              .string()
-              .min(1)
-              .describe("Recipient JID, e.g. someone@example.com"),
-            message: z
-              .string()
-              .min(1)
-              .describe("Chat body for the message"),
-          }),
-        async execute(args) {
+       sendXmppMessage: toolFactory({
+         description: "Send an XMPP stanza using the configured credentials.",
+         args: {
+           to: z.string().min(1).describe("Recipient JID, e.g. someone@example.com"),
+           message: z.string().min(1).describe("Chat body for the message"),
+         },
+         async execute(args, _context) {
           const result = await callApi("sendXmppMessage", {
             method: "POST",
             path: "/xmpp/send",
