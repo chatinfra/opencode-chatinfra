@@ -11,7 +11,7 @@
   "model": "openai/GPT 5.1 Codex Max (OAuth)",
   "plugin": [
     "opencode-openai-codex-auth@4.1.0",
-    "chatinfra.js"
+    ".opencode/plugin/chatinfra.js"
   ],
   "mcp": {
 
