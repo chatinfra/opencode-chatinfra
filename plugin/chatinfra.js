@@ -70,6 +70,7 @@ const safeJson = (value, maxLength = 1000) => {
 };
 
 const BASE_URL = process.env.CHATINFRA_API_BASE_URL || "https://api.example.com";
+logInfo(`Using Chatinfra API base URL: ${BASE_URL}`);
 const AUTH_TOKEN = process.env.CHATINFRA_API_KEY || process.env.CHATINFRA_API_TOKEN || "";
 const TIMEOUT_MS = normalizeTimeout(process.env.CHATINFRA_API_TIMEOUT_MS, 15000);
 
