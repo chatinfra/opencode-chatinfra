@@ -1,0 +1,52 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@opencode-ai/plugin':
+        specifier: 1.0.152
+        version: 1.0.152
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      zod:
+        specifier: ^4.1.13
+        version: 4.1.13
+
+packages:
+
+  '@opencode-ai/plugin@1.0.152':
+    resolution: {integrity: sha512-P8ov9iUOaonO1yWKnArYrIOcyzncFgIP0oDn3KTWbIM0viVA0lUf64GIwLuKcDd6W9m9ZgFcB06RzEKDnZHNjA==}
+
+  '@opencode-ai/sdk@1.0.152':
+    resolution: {integrity: sha512-0m0Z8QFg98DMEt24PWOJZBrdUhKCHBYo5AHsCIrMkrH4jfl9V8zsN2upp1mWw+waREDEnFtQwdLA56oIS8gngQ==}
+
+  dotenv@17.2.3:
+    resolution: {integrity: sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==}
+    engines: {node: '>=12'}
+
+  zod@4.1.13:
+    resolution: {integrity: sha512-AvvthqfqrAhNH9dnfmrfKzX5upOdjUVJYFqNSlkmGf64gRaTzlPwz99IHYnVs28qYAybvAlBV+H7pn0saFY4Ig==}
+
+  zod@4.1.8:
+    resolution: {integrity: sha512-5R1P+WwQqmmMIEACyzSvo4JXHY5WiAFHRMg+zBZKgKS+Q1viRa0C1hmUKtHltoIFKtIdki3pRxkmpP74jnNYHQ==}
+
+snapshots:
+
+  '@opencode-ai/plugin@1.0.152':
+    dependencies:
+      '@opencode-ai/sdk': 1.0.152
+      zod: 4.1.8
+
+  '@opencode-ai/sdk@1.0.152': {}
+
+  dotenv@17.2.3: {}
+
+  zod@4.1.13: {}
+
+  zod@4.1.8: {}
