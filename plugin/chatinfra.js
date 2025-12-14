@@ -7,8 +7,13 @@ let cachedTool;
 const acquireTool = async () => {
   if (cachedTool) return cachedTool;
   try {
-    const module = await import("@opencode-ai/plugin");
-    cachedTool = module.tool;
+    try {
+      const module = await import("@opencode-ai/plugin");
+      cachedTool = module.tool;
+    } catch {
+      const module = await import("@opencode-ai/plugin/tool");
+      cachedTool = module.tool;
+    }
   } catch {
     const fallback = (input) => input;
     fallback.schema = zodSchema;
@@ -69,14 +74,20 @@ const safeJson = (value, maxLength = 1000) => {
   }
 };
 
+const normalizeToolOutput = (value) => {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  return safeJson(value, 10000);
+};
+
 const BASE_URL = process.env.CHATINFRA_API_BASE_URL || "https://api.example.com";
-logInfo(`Using Chatinfra API base URL: ${BASE_URL}`);
 const AUTH_TOKEN = process.env.CHATINFRA_API_KEY || process.env.CHATINFRA_API_TOKEN || "";
 const TIMEOUT_MS = normalizeTimeout(process.env.CHATINFRA_API_TIMEOUT_MS, 15000);
 
 const buildUrl = (path, query) => {
-  const base = new URL(BASE_URL);
-  const url = new URL(path, base);
+  const url = new URL(BASE_URL + path);
+
+  logInfo(`buildUrl Using Chatinfra API base URL: ${BASE_URL}`);
 
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
@@ -84,6 +95,7 @@ const buildUrl = (path, query) => {
       url.searchParams.set(key, String(value));
     });
   }
+  logInfo(`buildUrl returning: ${url}`);
 
   return url;
 };
@@ -97,7 +109,8 @@ const callApi = async (toolName, { method, path, query, body }) => {
   const headers = {
     Accept: "application/json",
   };
-  if (body) {
+  const hasBody = body !== undefined;
+  if (hasBody) {
     headers["Content-Type"] = "application/json";
   }
   if (AUTH_TOKEN) {
@@ -108,17 +121,17 @@ const callApi = async (toolName, { method, path, query, body }) => {
     method,
     headers,
   };
-  if (body) {
-    options.body = JSON.stringify(body);
+  if (hasBody) {
+    options.body = JSON.stringify(body ?? null);
   }
 
   const controller = typeof AbortController === "function" ? new AbortController() : null;
   if (controller && TIMEOUT_MS) {
     options.signal = controller.signal;
   }
-
+  logInfo("BEFORE other log")
   logInfo(
-    `[${toolName}] Request ${method} ${url.href} query=${safeJson(url.searchParams.toString())} body=${safeJson(body)}`
+    `[${toolName}] Request ${method} ${url.href} query=${safeJson(url.searchParams.toString())} body=${safeJson(body)} serializedBody=${safeJson(options.body)}`
   );
 
   let timeoutId;
@@ -149,6 +162,9 @@ const callApi = async (toolName, { method, path, query, body }) => {
       throw new Error(message);
     }
 
+    logInfo("AFTER response.ok")
+    logInfo(`[${toolName}] parsed: ${parsed}`)
+    logInfo(`[${toolName}] payload: ${payload}`)
     return parsed ?? payload;
   } catch (err) {
     if (err.name === "AbortError") {
@@ -158,31 +174,28 @@ const callApi = async (toolName, { method, path, query, body }) => {
     logError(`[${toolName}] ${err && err.stack ? err.stack : err}`);
     throw err;
   } finally {
+    logInfo("in finally")
     if (timeoutId) {
       clearTimeout(timeoutId);
     }
+    logInfo("after clearTimeout")
   }
+  logInfo("AFTER other all")
 };
 
 export async function ChatinfraPlugin() {
   const toolFactory = await acquireTool();
   return {
     tool: {
-      sendXmppMessage: toolFactory({
-        description: "Send an XMPP stanza using the configured credentials.",
+       xmpp_send: toolFactory({
+         description: "Send an XMPP stanza using the configured credentials.",
         args: (z) =>
           z.object({
-            to: z
-              .string()
-              .min(1)
-              .describe("Recipient JID, e.g. someone@example.com"),
-            message: z
-              .string()
-              .min(1)
-              .describe("Chat body for the message"),
+            to: z.string().min(1).describe("Recipient JID, e.g. someone@example.com"),
+            message: z.string().min(1).describe("Chat body for the message"),
           }),
-        async execute(args) {
-          return await callApi("sendXmppMessage", {
+         async execute(args, _context) {
+          const result = await callApi("sendXmppMessage", {
             method: "POST",
             path: "/xmpp/send",
             body: {
@@ -190,30 +203,28 @@ export async function ChatinfraPlugin() {
               message: args.message,
             },
           });
+          return normalizeToolOutput(result);
         },
       }),
-      describeXmppConnection: toolFactory({
+      xmpp_me: toolFactory({
         description: "Describe the configured XMPP credential.",
-        args: (z) => z.object({}).describe("No arguments required."),
-        async execute() {
-          return await callApi("describeXmppConnection", {
+        args: (z) => z.object({}).optional().default({}).describe("No arguments required."),
+        async execute(_args, _context) {
+          const r = await callApi("describeXmppConnection", {
             method: "GET",
             path: "/xmpp/me",
           });
+          logInfo(`describeXmppConnection: ${safeJson()}`);
+          logInfo(`describeXmppConnection: ${safeJson(r)}`);
+          return normalizeToolOutput(r);
         },
       }),
-      scheduleTask: toolFactory({
+      task_schedule: toolFactory({
         description: "Schedule a future send task.",
         args: (z) =>
           z.object({
-            to: z
-              .string()
-              .min(1)
-              .describe("Recipient JID for the scheduled message"),
-            message: z
-              .string()
-              .min(1)
-              .describe("Chat body to deliver when the task runs"),
+            to: z.string().min(1).describe("Recipient JID for the scheduled message"),
+            message: z.string().min(1).describe("Chat body to deliver when the task runs"),
             runAt: z
               .string()
               .optional()
@@ -229,7 +240,7 @@ export async function ChatinfraPlugin() {
               .optional()
               .describe("Optional key-value metadata the scheduler stores"),
           }),
-        async execute(args) {
+        async execute(args, _context) {
           const payload = {
             to: args.to,
             message: args.message,
@@ -238,14 +249,15 @@ export async function ChatinfraPlugin() {
           if (args.intervalSeconds) payload.intervalSeconds = args.intervalSeconds;
           if (args.metadata) payload.metadata = args.metadata;
 
-          return await callApi("scheduleTask", {
+          const result = await callApi("scheduleTask", {
             method: "POST",
             path: "/tasks",
             body: payload,
           });
+          return normalizeToolOutput(result);
         },
       }),
-      listScheduledTasks: toolFactory({
+      task_list: toolFactory({
         description: "List pending or active tasks, optionally filtered by status.",
         args: (z) =>
           z.object({
@@ -254,31 +266,30 @@ export async function ChatinfraPlugin() {
               .optional()
               .describe("Optional lifecycle status to filter (pending, running, etc.)"),
           }),
-        async execute(args) {
-          return await callApi("listScheduledTasks", {
+        async execute(args, _context) {
+          const result = await callApi("listScheduledTasks", {
             method: "GET",
             path: "/tasks",
             query: args.status ? { status: args.status } : undefined,
           });
+          return normalizeToolOutput(result);
         },
       }),
-      cancelScheduledTask: toolFactory({
+      task_cancel: toolFactory({
         description: "Cancel a scheduled task by ID.",
         args: (z) =>
           z.object({
-            taskId: z
-              .string()
-              .min(1)
-              .describe("Identifier returned when the task was created"),
+            taskId: z.string().min(1).describe("Identifier returned when the task was created"),
           }),
-        async execute(args) {
-          return await callApi("cancelScheduledTask", {
+        async execute(args, _context) {
+          const result = await callApi("cancelScheduledTask", {
             method: "POST",
             path: `/tasks/${encodeURIComponent(args.taskId)}/cancel`,
           });
+          return normalizeToolOutput(result);
         },
       }),
-      getTaskHistory: toolFactory({
+      task_history: toolFactory({
         description: "Retrieve recent task execution history.",
         args: (z) =>
           z.object({
@@ -294,15 +305,16 @@ export async function ChatinfraPlugin() {
               .optional()
               .describe("Optional final status filter (completed, failed, canceled)"),
           }),
-        async execute(args) {
+        async execute(args, _context) {
           const query = {};
           if (args.limit) query.limit = args.limit;
           if (args.status) query.status = args.status;
-          return await callApi("getTaskHistory", {
+          const result = await callApi("getTaskHistory", {
             method: "GET",
             path: "/tasks/history",
             query: Object.keys(query).length ? query : undefined,
           });
+          return normalizeToolOutput(result);
         },
       }),
     },
